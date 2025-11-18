@@ -205,6 +205,7 @@
             }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -266,12 +267,13 @@
 <script>
         // ******************************************************
         // วาง URL ที่ได้จาก Google Apps Script ตรงนี้
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw1lMp8-96-jRjG1sAjku4wkvhZLAIqFdr-nkwzs5hLw8jnB7TzHcNGHCW60ZQhXeY/exec"; 
+        const WEB_APP_URL = "วาง_URL_ของ_Google_Script_ที่นี่"; 
         // ******************************************************
 
         let fuelRecords = [];
         let editingId = null;
         const submitBtn = document.getElementById('submitBtn');
+        let fuelChart = null; // ตัวแปรสำหรับเก็บ Chart Object
 
         // ฟังก์ชันโหลดข้อมูลจาก Google Sheets
         async function loadRecords() {
@@ -284,12 +286,79 @@
                 fuelRecords = data;
                 updateTable();
                 updateStats();
+                renderChart(); // เรียกฟังก์ชันวาดกราฟหลังจากโหลดข้อมูลแล้ว
             } catch (e) {
                 console.error('Error loading records:', e);
                 alert('ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบอินเทอร์เน็ต');
             }
         }
 
+        // ฟังก์ชันวาดกราฟ (ใหม่)
+        function renderChart() {
+            const chartCanvas = document.getElementById('fuelChartCanvas');
+            if (!chartCanvas) return;
+            
+            // 1. เตรียมข้อมูล
+            // ใช้ .slice().reverse() เพื่อเรียงลำดับข้อมูลจากเก่าไปใหม่สำหรับกราฟเส้น
+            const chartData = fuelRecords.slice().reverse(); 
+            
+            const labels = chartData.map(record => {
+                // ตัดส่วนเวลาออก เหลือแต่วันที่/เดือน/ปี
+                return record.timestamp.split(' ')[0]; 
+            });
+            
+            const kmPerLiterData = chartData.map(record => Number(record.kmPerLiter).toFixed(2));
+            const avgConsumption = fuelRecords.length > 0 ? fuelRecords.reduce((sum, record) => sum + Number(record.kmPerLiter), 0) / fuelRecords.length : 0;
+            
+            // 2. ถ้ามี Chart เดิมอยู่ ให้ทำลายทิ้งก่อน
+            if (fuelChart) {
+                fuelChart.destroy();
+            }
+
+            // 3. สร้าง Chart ใหม่
+            fuelChart = new Chart(chartCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'อัตราสิ้นเปลือง (กม./ลิตร)',
+                        data: kmPerLiterData,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                        tension: 0.3,
+                        fill: true
+                    }, {
+                        label: 'ค่าเฉลี่ยทั้งหมด',
+                        data: Array(kmPerLiterData.length).fill(avgConsumption.toFixed(2)),
+                        borderColor: 'red',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: false,
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'กม./ลิตร'
+                            },
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+        
         // ฟังก์ชันบันทึกข้อมูล (เพิ่ม/แก้ไข) ไปยัง Google Sheets
         async function saveToCloud(record, action) {
             submitBtn.textContent = 'กำลังบันทึก...';
@@ -298,7 +367,7 @@
             try {
                 await fetch(WEB_APP_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // สำคัญ: เพื่อให้ส่งข้ามโดเมนได้
+                    mode: 'no-cors',
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -308,7 +377,7 @@
                     })
                 });
                 
-                // บันทึกเสร็จแล้ว โหลดข้อมูลใหม่เพื่อให้ชัวร์ว่าตรงกัน
+                // บันทึกเสร็จแล้ว โหลดข้อมูลใหม่ทั้งหมด
                 await loadRecords();
                 
             } catch (e) {
@@ -320,7 +389,11 @@
             }
         }
 
+        // โค้ดส่วนอื่นๆ (event listeners, updateTable, updateStats, deleteRecord, editRecord) 
+        // ให้คงไว้ตามเดิมจากโค้ดที่คุณมีอยู่
+
         document.getElementById('fuelForm').addEventListener('submit', async function(e) {
+            // ... (โค้ดเดิม) ...
             e.preventDefault();
             
             const odometerBefore = parseFloat(document.getElementById('odometerBefore').value);
@@ -339,7 +412,7 @@
             const kmPerLiter = distance / fuelAmount;
 
             const record = {
-                id: editingId || Date.now(), // ถ้าแก้ไขใช้ ID เดิม ถ้าใหม่สร้าง ID ใหม่
+                id: editingId || Date.now(),
                 timestamp: editingId ? fuelRecords.find(r => r.id == editingId).timestamp : new Date().toLocaleString('th-TH'),
                 odometerBefore: odometerBefore,
                 odometerAfter: odometerAfter,
@@ -360,10 +433,17 @@
             this.reset();
         });
 
+        document.getElementById('cancelBtn').addEventListener('click', function() {
+            editingId = null;
+            document.getElementById('fuelForm').reset();
+            submitBtn.textContent = 'เพิ่มข้อมูล';
+            this.style.display = 'none';
+        });
+
         // ฟังก์ชันลบข้อมูล
         async function deleteRecord(id) {
             if (confirm('ต้องการลบข้อมูลนี้หรือไม่?')) {
-                // แสดง UI ว่ากำลังลบ
+                // ... (โค้ดเดิม) ...
                 const row = document.querySelector(`button[onclick="deleteRecord(${id})"]`).closest('tr');
                 row.style.opacity = '0.5';
                 
@@ -374,23 +454,20 @@
                     body: JSON.stringify({ action: 'delete', id: id })
                 });
                 
-                await loadRecords();
+                await loadRecords(); // โหลดใหม่และวาดกราฟใหม่
             }
         }
 
-        // ฟังก์ชันเตรียมแก้ไข
         function editRecord(id) {
-            // แปลง id เป็น number เพราะ JSON อาจส่งมาเป็น string หรือ number ก็ได้
+            // ... (โค้ดเดิม) ...
             const record = fuelRecords.find(r => r.id == id);
             if (!record) return;
 
-            // คำนวณย้อนกลับเพื่อหาจำนวนเงินที่เติม (สำหรับแสดงในฟอร์ม)
-            // สูตร: จำนวนเงิน = ปริมาณลิตร * ราคาต่อลิตร
             const moneySpent = record.fuelAmount * record.fuelPrice;
 
             document.getElementById('odometerBefore').value = record.odometerBefore;
             document.getElementById('odometerAfter').value = record.odometerAfter;
-            document.getElementById('fuelAmount').value = moneySpent.toFixed(2); // แสดงเป็นจำนวนเงิน
+            document.getElementById('fuelAmount').value = moneySpent.toFixed(2);
             document.getElementById('fuelPrice').value = record.fuelPrice;
 
             editingId = id;
@@ -400,15 +477,8 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        document.getElementById('cancelBtn').addEventListener('click', function() {
-            editingId = null;
-            document.getElementById('fuelForm').reset();
-            submitBtn.textContent = 'เพิ่มข้อมูล';
-            this.style.display = 'none';
-        });
-
-        // Render ตาราง (เหมือนเดิม แต่ปรับปรุงนิดหน่อย)
         function updateTable() {
+            // ... (โค้ดเดิม) ...
             const tableBody = document.getElementById('fuelTableBody');
             
             if (fuelRecords.length === 0) {
@@ -425,8 +495,6 @@
             }
             
             tableBody.innerHTML = fuelRecords.map(record => {
-                // คำนวณจำนวนเงินเพื่อแสดงผล (optional) เพราะใน DB เราเก็บเป็น fuelAmount (ลิตร)
-                // แต่ถ้าจะเอาแบบง่ายๆ ตามฟิลด์เดิม:
                 return `
                 <tr>
                     <td>${record.timestamp}</td>
@@ -434,7 +502,7 @@
                     <td>${Number(record.odometerAfter).toFixed(1)} กม.</td>
                     <td>${Number(record.fuelPrice).toFixed(2)} บาท</td>
                     <td>${Number(record.costPerKm).toFixed(2)} บาท</td>
-                    <td>${Number(record.kmPerLiter).toFixed(2)} กม./ลิตร</td>
+                    <td>${Number(record.kmPerLiter).toFixed(2)} บาท</td>
                     <td>
                         <div class="action-buttons">
                             <button class="btn btn-warning" onclick="editRecord(${record.id})">แก้ไข</button>
@@ -446,6 +514,7 @@
         }
 
         function updateStats() {
+            // ... (โค้ดเดิม) ...
             const statsSection = document.getElementById('statsSection');
             if (fuelRecords.length === 0) {
                 statsSection.style.display = 'none';
@@ -460,4 +529,8 @@
         loadRecords();
     </script>
 </body>
+    <div id="chartContainer" class="form-section" style="margin-top: 20px;">
+    <h2 style="margin-bottom: 20px; color: #495057;">📊 กราฟอัตราการสิ้นเปลืองน้ำมัน (กม./ลิตร)</h2>
+    <canvas id="fuelChartCanvas"></canvas>
+</div>
 </html>
