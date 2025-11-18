@@ -264,27 +264,28 @@
     </div>
 
     <script>
-        let fuelRecords = loadRecords();
+        let fuelRecords = [];
         let editingId = null;
 
-        function saveRecords() {
+        async function saveRecords() {
             try {
-                window.storage.set('fuelRecords', JSON.stringify(fuelRecords));
+                await window.storage.set('fuelRecords', JSON.stringify(fuelRecords));
             } catch (e) {
                 console.error('Error saving records:', e);
             }
         }
 
-        function loadRecords() {
+        async function loadRecords() {
             try {
-                const data = window.storage.get('fuelRecords');
-                if (data && data.value) {
-                    return JSON.parse(data.value);
+                const result = await window.storage.get('fuelRecords');
+                if (result && result.value) {
+                    fuelRecords = JSON.parse(result.value);
+                    updateTable();
+                    updateStats();
                 }
             } catch (e) {
                 console.error('Error loading records:', e);
             }
-            return [];
         }
 
         document.getElementById('fuelForm').addEventListener('submit', function(e) {
@@ -428,9 +429,8 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Initialize
-        updateTable();
-        updateStats();
+        // Initialize - Load saved data
+        loadRecords();
     </script>
 </body>
 </html>
