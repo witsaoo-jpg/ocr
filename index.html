@@ -264,8 +264,28 @@
     </div>
 
     <script>
-        let fuelRecords = [];
+        let fuelRecords = loadRecords();
         let editingId = null;
+
+        function saveRecords() {
+            try {
+                window.storage.set('fuelRecords', JSON.stringify(fuelRecords));
+            } catch (e) {
+                console.error('Error saving records:', e);
+            }
+        }
+
+        function loadRecords() {
+            try {
+                const data = window.storage.get('fuelRecords');
+                if (data && data.value) {
+                    return JSON.parse(data.value);
+                }
+            } catch (e) {
+                console.error('Error loading records:', e);
+            }
+            return [];
+        }
 
         document.getElementById('fuelForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -316,6 +336,7 @@
                 fuelRecords.unshift(record);
             }
 
+            saveRecords();
             updateTable();
             updateStats();
             
@@ -380,6 +401,7 @@
         function deleteRecord(id) {
             if (confirm('ต้องการลบข้อมูลนี้หรือไม่?')) {
                 fuelRecords = fuelRecords.filter(record => record.id !== id);
+                saveRecords();
                 updateTable();
                 updateStats();
             }
