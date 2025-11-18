@@ -269,7 +269,9 @@
 
         async function saveRecords() {
             try {
-                await window.storage.set('fuelRecords', JSON.stringify(fuelRecords));
+                // เปลี่ยนจาก window.storage.set เป็น localStorage.setItem
+                // และ localStorage เป็นแบบ Synchronous (ทำงานทันที) เลยไม่ต้องใช้ await
+                localStorage.setItem('fuelRecords', JSON.stringify(fuelRecords));
             } catch (e) {
                 console.error('Error saving records:', e);
             }
@@ -277,9 +279,14 @@
 
         async function loadRecords() {
             try {
-                const result = await window.storage.get('fuelRecords');
-                if (result && result.value) {
-                    fuelRecords = JSON.parse(result.value);
+                // เปลี่ยนจาก window.storage.get เป็น localStorage.getItem
+                // และไม่ต้องใช้ await
+                const savedRecords = localStorage.getItem('fuelRecords');
+                
+                // localStorage.getItem จะคืนค่าเป็น string โดยตรง (หรือ null ถ้าไม่มี)
+                // ไม่ได้คืนค่าเป็น object ที่มี .value
+                if (savedRecords) { 
+                    fuelRecords = JSON.parse(savedRecords);
                     updateTable();
                     updateStats();
                 }
